@@ -540,10 +540,39 @@ def get_installed_software(snapshot):
 
 def add_running_processes(snapshot):
     try:
-        # TODO Milestone 5: parse `tasklist /fo csv` and append one dict
-        # per process to snapshot["running_processes"].
-        # Remember: this function does NOT return anything.
-        pass
+        # Run the Windows tasklist command in CSV mode and parse the results.
+        output = run_command(["tasklist", "/fo", "csv"])
+
+        # csv.reader handles quoted CSV fields and commas inside values.
+        reader = csv.reader(output.splitlines())
+
+        # Skip the header row, which contains the column names.
+        first_row = True
+        for row in reader:
+            if first_row:
+                first_row = False
+                continue
+
+            # Expect at least two columns: image name and PID.
+            if len(row) < 2:
+                continue
+
+            name = row[0].strip()
+            pid_value = row[1].strip()
+
+            # Convert PID text to an integer, but don't crash if it's bad.
+            try:
+                pid = int(pid_value)
+            except Exception:
+                pid = None
+
+            snapshot["running_processes"].append({
+                "pid": pid,
+                "parent_pid": None,
+                "name": name,
+                "executable_path": None,
+                "command_line": None,
+            })
     except Exception as e:
         add_warning(snapshot, "running_processes failed: " + str(e))
 
