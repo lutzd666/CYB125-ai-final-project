@@ -353,7 +353,7 @@ running processes is important for identifying services that are accessing parts
 installed software is important for removing and restricting uneccessary software on the device.
 
 - 11. install_hotfixes
-install hotfixes are important for recording what hotfix was implemented last and by who.
+install hotfixes are important for recording what hotfix was implemented last and what ID it has incase a harmful update was pushed.
 
 - 12. persistence_locations
 persistence locations are important for discovering anomolies within startup.
