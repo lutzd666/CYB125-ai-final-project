@@ -423,10 +423,76 @@ def get_password_policy(snapshot):
 
 def get_installed_software(snapshot):
     software = []
+
+    # Helper converts an YYYYMMDD string into ISO date format.
+    # I chose datetime.strptime() because it validates the format.
+    # A simpler option would be raw slicing, but that would not catch
+    # invalid date strings as cleanly.
+    def normalize_install_date(raw_date):
+        if raw_date is None:
+            return None
+        cleaned = raw_date.strip()
+        if cleaned == "":
+            return None
+        try:
+            return datetime.datetime.strptime(cleaned, "%Y%m%d").date().isoformat()
+        except Exception:
+            return None
+
     try:
-        # TODO Milestone 4: walk the Uninstall hive and append a dict
-        # for each program with a DisplayName.
-        pass
+        # Open the parent Uninstall key so we can enumerate its children.
+        base_key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+        uninstall_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, base_key)
+
+        index = 0
+        while True:
+            try:
+                # winreg.EnumKey returns the subkey name at the given index.
+                # It raises OSError when there are no more subkeys, so the
+                # loop ends by catching that specific exception.
+                subkey_name = winreg.EnumKey(uninstall_key, index)
+            except OSError:
+                break
+
+            full_path = base_key + "\\" + subkey_name
+
+            # Read DisplayName first; skip entries without it.
+            display_name = get_registry_value(
+                winreg.HKEY_LOCAL_MACHINE,
+                full_path,
+                "DisplayName"
+            )
+            if not display_name:
+                index += 1
+                continue
+
+            display_version = get_registry_value(
+                winreg.HKEY_LOCAL_MACHINE,
+                full_path,
+                "DisplayVersion"
+            )
+            publisher = get_registry_value(
+                winreg.HKEY_LOCAL_MACHINE,
+                full_path,
+                "Publisher"
+            )
+            install_date_raw = get_registry_value(
+                winreg.HKEY_LOCAL_MACHINE,
+                full_path,
+                "InstallDate"
+            )
+            install_date = normalize_install_date(install_date_raw)
+
+            software.append({
+                "display_name": display_name,
+                "display_version": display_version,
+                "publisher": publisher,
+                "install_date": install_date,
+            })
+
+            index += 1
+
+        winreg.CloseKey(uninstall_key)
     except Exception as e:
         add_warning(snapshot, "installed_software failed: " + str(e))
     return software
