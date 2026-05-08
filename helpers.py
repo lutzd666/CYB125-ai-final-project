@@ -333,11 +333,52 @@ def get_system_identity(snapshot):
 
 def get_password_policy(snapshot):
     info = {}
+
+    # Helper converts a raw policy string into an int or None.
+    # This keeps the JSON values typed as integers when possible,
+    # and uses None for the special "Never" case.
+    def parse_int_or_none(raw_value):
+        clean_value = raw_value.strip()
+        if clean_value.lower() == "never":
+            return None
+        try:
+            return int(clean_value)
+        except Exception:
+            return None
+
     try:
-        # TODO Milestone 3: parse `net accounts` and populate the 7 fields
-        # listed in the comment block above. Use run_command() to invoke
-        # the command, then walk its output line by line.
-        pass
+        # Run the Windows command and capture its output text.
+        output = run_command(["net", "accounts"])
+
+        # Map the human-readable labels from `net accounts` to our JSON keys.
+        label_to_field = {
+            "Minimum password length": "minimum_password_length",
+            "Minimum password age (days)": "minimum_password_age_days",
+            "Maximum password age (days)": "maximum_password_age_days",
+            "Length of password history maintained": "password_history_length",
+            "Lockout threshold": "lockout_threshold",
+            "Lockout duration (minutes)": "lockout_duration_minutes",
+            "Lockout observation window (minutes)": "lockout_observation_window_minutes",
+        }
+
+        # Walk through each line of output and parse the label/value pairs.
+        for line in output.splitlines():
+            stripped_line = line.strip()
+            if not stripped_line or ":" not in stripped_line:
+                continue
+            label, raw_value = stripped_line.split(":", 1)
+            label = label.strip()
+            if label not in label_to_field:
+                continue
+
+            # Convert the value text into an integer or None.
+            info[label_to_field[label]] = parse_int_or_none(raw_value)
+
+        # Ensure every expected field exists, even if the command output
+        # omitted it for some reason.
+        for expected_field in label_to_field.values():
+            if expected_field not in info:
+                info[expected_field] = None
     except Exception as e:
         add_warning(snapshot, "password_policy failed: " + str(e))
     return info
